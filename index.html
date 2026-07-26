@@ -214,6 +214,7 @@ function addFiles(list) {
     const n = f.name.toLowerCase();
     if (f.type.startsWith("image/") || n.endsWith(".heic") || n.endsWith(".heif")) {
       queue.push({ file: f, name: f.name });
+      if (looksHeic(f)) loadHeicLib().catch(() => {}); // 先にデコーダを温めておく
     }
   }
   updateStartBtn();
@@ -283,37 +284,100 @@ async function callGemini(key, b64, mime, _retried) {
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-/* ── thumbnail & preview ── */
-async function makeThumb(file) {
+/* ── HEIC デコーダ(遅延読み込み) ──
+   ChromeはHEICを表示できないので、必要になった時だけlibheifベースの
+   デコーダを読み込む。読めなくてもAPI読み取り自体は動くので致命傷にはしない。 */
+const HEIC_CDN = [
+  "https://cdn.jsdelivr.net/npm/heic-to@1.5.2/dist/iife/heic-to.js",
+  "https://unpkg.com/heic-to@1.5.2/dist/iife/heic-to.js",
+];
+let heicLibPromise = null;
+function loadHeicLib() {
+  if (window.HeicTo) return Promise.resolve(window.HeicTo);
+  if (heicLibPromise) return heicLibPromise;
+  heicLibPromise = new Promise((ok, ng) => {
+    let i = 0;
+    const tryNext = () => {
+      if (i >= HEIC_CDN.length) return ng(new Error("HEICデコーダの読み込みに失敗"));
+      const sc = document.createElement("script");
+      sc.src = HEIC_CDN[i++];
+      sc.onload = () => window.HeicTo ? ok(window.HeicTo) : tryNext();
+      sc.onerror = () => tryNext();
+      document.head.appendChild(sc);
+    };
+    tryNext();
+  });
+  return heicLibPromise;
+}
+function looksHeic(file) {
+  const n = (file.name || "").toLowerCase();
+  return n.endsWith(".heic") || n.endsWith(".heif") ||
+    file.type === "image/heic" || file.type === "image/heif";
+}
+/* HEIC → 表示可能なJPEG Blob（失敗したらnull） */
+async function heicToJpegBlob(file, quality) {
   try {
-    const b = await createImageBitmap(file);
-    const s = 240 / Math.max(b.width, b.height);
-    const c = document.createElement("canvas");
-    c.width = Math.round(b.width * s);
-    c.height = Math.round(b.height * s);
-    c.getContext("2d").drawImage(b, 0, 0, c.width, c.height);
-    b.close();
-    return c.toDataURL("image/jpeg", 0.7);
-  } catch (e) { return null; } // HEIC等ブラウザで表示できない形式
+    const lib = await loadHeicLib();
+    return await lib.heicTo({ blob: file, type: "image/jpeg", quality: quality || 0.85 });
+  } catch (e) { console.warn("HEIC decode failed:", e); return null; }
+}
+
+/* ── thumbnail & preview ── */
+function bitmapToThumb(b) {
+  const s = 240 / Math.max(b.width, b.height);
+  const c = document.createElement("canvas");
+  c.width = Math.round(b.width * s);
+  c.height = Math.round(b.height * s);
+  c.getContext("2d").drawImage(b, 0, 0, c.width, c.height);
+  b.close();
+  return c.toDataURL("image/jpeg", 0.7);
+}
+async function makeThumb(file) {
+  // 1) ブラウザがそのまま読める形式
+  try {
+    return bitmapToThumb(await createImageBitmap(file));
+  } catch (e) { /* HEIC等 → 下でデコード */ }
+  // 2) HEICデコーダ経由
+  const jpg = await heicToJpegBlob(file, 0.8);
+  if (!jpg) return null;
+  try {
+    return bitmapToThumb(await createImageBitmap(jpg));
+  } catch (e) { return null; }
 }
 let modalUrl = null;
-function openPreview(id) {
+async function openPreview(id) {
   const r = rows.find(x => x.id === id);
   if (!r) return;
-  if (r.fileRef && r.thumb) {
+  const imgEl = document.getElementById("modalImg");
+  if (r.fileRef && !looksHeic(r.fileRef)) {
     modalUrl = URL.createObjectURL(r.fileRef);
-    document.getElementById("modalImg").src = modalUrl;
+    imgEl.src = modalUrl;
+  } else if (r.fileRef) {
+    // HEIC: 押された時に初めてフル解像度でデコード（結果は使い回す）
+    if (!r.fullUrl) {
+      imgEl.src = r.thumb || "";
+      document.getElementById("modal").style.display = "flex";
+      const jpg = await heicToJpegBlob(r.fileRef, 0.92);
+      if (jpg) { r.fullUrl = URL.createObjectURL(jpg); }
+      else if (!r.thumb) {
+        document.getElementById("modal").style.display = "none";
+        alert("この写真はブラウザで表示できなかった。Macの写真アプリで確認してね（読み取り自体は正常にできてる）");
+        return;
+      }
+    }
+    imgEl.src = r.fullUrl || r.thumb;
   } else if (r.thumb) {
-    document.getElementById("modalImg").src = r.thumb; // 復元データは縮小版のみ
+    imgEl.src = r.thumb; // 復元データは縮小版のみ
   } else {
-    alert("HEIC形式はブラウザで表示できないため、Macの写真アプリ等で確認してね（読み取り自体は正常にできてる）");
+    alert("この写真は表示できない（ページ再読み込み後は元ファイルが残らないため）。読み取り結果の金額はそのまま使えるよ");
     return;
   }
   document.getElementById("modal").style.display = "flex";
 }
 function closeModal() {
   document.getElementById("modal").style.display = "none";
-  if (modalUrl) { URL.revokeObjectURL(modalUrl); modalUrl = null; }
+  document.getElementById("modalImg").src = "";
+  if (modalUrl) { URL.revokeObjectURL(modalUrl); modalUrl = null; } // HEICのfullUrlは使い回すので消さない
 }
 
 async function startRead() {
