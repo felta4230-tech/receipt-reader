@@ -109,7 +109,52 @@
 </div>
 
 <script>
-const MODEL = "gemini-2.5-flash";
+/* ── モデル自動解決 ──
+   Googleが古いモデルを新規キー向けに打ち切るため、モデル名をハードコードしない。
+   キーで実際に使えるモデル一覧をAPIに問い合わせて、優先順で自動採用する。 */
+const MODEL_PREF = [
+  "gemini-3.6-flash",
+  "gemini-3.5-flash",
+  "gemini-flash-latest",
+  "gemini-3.1-flash",
+  "gemini-2.5-flash",
+  "gemini-3.5-flash-lite",
+  "gemini-3.1-flash-lite",
+  "gemini-flash-lite-latest",
+  "gemini-2.5-flash-lite",
+];
+let ACTIVE_MODEL = localStorage.getItem("gemini_model") || null;
+
+async function listUsableModels(key) {
+  const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200", {
+    headers: { "x-goog-api-key": key },
+  });
+  if (!r.ok) throw new Error(`モデル一覧の取得に失敗 ${r.status}: ${(await r.text()).substring(0, 150)}`);
+  const d = await r.json();
+  return (d.models || [])
+    .filter(m => (m.supportedGenerationMethods || []).includes("generateContent"))
+    .map(m => (m.name || "").replace(/^models\//, ""))
+    .filter(n => n && !/embedding|imagen|veo|tts|audio|image|live|learnlm|gemma/i.test(n));
+}
+
+async function resolveModel(key, force) {
+  if (ACTIVE_MODEL && !force) return ACTIVE_MODEL;
+  const avail = await listUsableModels(key);
+  let pick = MODEL_PREF.find(m => avail.includes(m));
+  if (!pick) pick = avail.find(n => /^gemini-\d/.test(n) && /flash/.test(n) && !/preview|exp/.test(n));
+  if (!pick) pick = avail.find(n => /^gemini-\d/.test(n) && !/preview|exp/.test(n));
+  if (!pick) pick = avail[0];
+  if (!pick) throw new Error("このAPIキーで使えるモデルが1つも見つからない。キーを作り直してみて");
+  ACTIVE_MODEL = pick;
+  localStorage.setItem("gemini_model", pick);
+  showModel();
+  return pick;
+}
+
+function showModel() {
+  const el = document.getElementById("modelLine");
+  if (el) el.textContent = ACTIVE_MODEL ? `🤖 使用モデル: ${ACTIVE_MODEL}` : "";
+}
 const PACE_MS = 6500; // 無料枠(毎分10回)対策
 let queue = [];   // {file, name}
 let rows = [];    // {id, name, amount, date, store, conf, source, reason, included, status}
@@ -134,18 +179,24 @@ function saveKey() {
   const v = document.getElementById("keyInput").value.trim();
   if (!v) { alert("キーを貼り付けてから保存を押してね"); return; }
   localStorage.setItem("gemini_key", v);
+  localStorage.removeItem("gemini_model");
+  ACTIVE_MODEL = null;
   refreshKeyCard();
+  resolveModel(v).catch(e => alert("キーの確認でエラー: " + e.message));
 }
 function refreshKeyCard() {
   const k = localStorage.getItem("gemini_key");
   const card = document.getElementById("keyCard");
   if (k) {
-    card.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-size:13px;color:#16a34a;font-weight:700;">🔑 APIキー設定済み</span><button class="btn-gray" onclick="resetKey()">キーを変更</button></div>';
+    card.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-size:13px;color:#16a34a;font-weight:700;">🔑 APIキー設定済み</span><button class="btn-gray" onclick="resetKey()">キーを変更</button></div><div id="modelLine" style="font-size:12px;color:#6b7280;margin-top:6px;"></div>';
+    showModel();
   }
   updateStartBtn();
 }
 function resetKey() {
   localStorage.removeItem("gemini_key");
+  localStorage.removeItem("gemini_model");
+  ACTIVE_MODEL = null;
   location.reload();
 }
 
@@ -196,10 +247,11 @@ function toB64(file) {
   });
 }
 
-async function callGemini(key, b64, mime) {
+async function callGemini(key, b64, mime, _retried) {
+  const model = await resolveModel(key);
   let resp;
   try {
-    resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
+    resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": key },
       body: JSON.stringify({
@@ -211,7 +263,19 @@ async function callGemini(key, b64, mime) {
     throw new Error("通信ブロック: ①プレビューで開いてる→ダウンロードしてダブルクリックで開く ②広告ブロッカー拡張→一時オフ ③ネット切断、のどれか");
   }
   if (resp.status === 429) throw Object.assign(new Error("rate"), { rate: true });
-  if (!resp.ok) throw new Error(`APIエラー ${resp.status}: ${(await resp.text()).substring(0, 150)}`);
+  if (!resp.ok) {
+    const body = await resp.text();
+    const modelGone = resp.status === 404 ||
+      /no longer available|is not found|not supported for|not found for API version/i.test(body);
+    if (modelGone && !_retried) {
+      // モデルが廃止/未提供 → 一覧を取り直して自動で乗り換え、1回だけ再試行
+      localStorage.removeItem("gemini_model");
+      ACTIVE_MODEL = null;
+      await resolveModel(key, true);
+      return callGemini(key, b64, mime, true);
+    }
+    throw new Error(`APIエラー ${resp.status}: ${body.substring(0, 150)}`);
+  }
   const d = await resp.json();
   const txt = (d.candidates?.[0]?.content?.parts || []).map(p => p.text || "").join("");
   return JSON.parse(txt.replace(/```json\s*/g, "").replace(/```/g, "").trim());
@@ -256,6 +320,14 @@ async function startRead() {
   const key = localStorage.getItem("gemini_key");
   if (!key || running || queue.length === 0) return;
   running = true;
+  try {
+    await resolveModel(key);
+  } catch (e) {
+    running = false;
+    updateStartBtn();
+    alert("読み取りを開始できない: " + e.message);
+    return;
+  }
   const batch = queue.splice(0);
   updateStartBtn();
   document.getElementById("resultCard").style.display = "";
