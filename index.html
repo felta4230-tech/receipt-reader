@@ -549,6 +549,12 @@ function exportCSV() {
 if (window.self !== window.top) document.getElementById("previewWarn").style.display = "";
 loadRows();
 refreshKeyCard();
+/* 既にキーが保存済みなら、ページを開いた時点で裏でモデルを解決しておく
+   （キー入れ直し不要・「🤖 使用モデル」表示のため。失敗しても無視） */
+(function () {
+  const k = localStorage.getItem("gemini_key");
+  if (k) resolveModel(k).catch(() => {});
+})();
 render();
 </script>
 </body>
