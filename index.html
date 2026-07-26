@@ -131,6 +131,15 @@ const ACCURATE_PREF = [
   "gemini-3.1-flash",
   "gemini-2.5-flash",
 ];
+/* モデル選定ロジックを変えた時は、この番号を上げる。
+   ブラウザに残った古い選定結果を捨てて選び直させるため。
+   これが無いと、以前のバージョンが保存したモデル名を使い続けてしまう。 */
+const MODEL_SCHEMA = "2";
+if (localStorage.getItem("gemini_model_schema") !== MODEL_SCHEMA) {
+  localStorage.removeItem("gemini_model");
+  localStorage.removeItem("gemini_model2");
+  localStorage.setItem("gemini_model_schema", MODEL_SCHEMA);
+}
 let FAST_MODEL     = localStorage.getItem("gemini_model")  || null;
 let ACCURATE_MODEL = localStorage.getItem("gemini_model2") || null;
 
