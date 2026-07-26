@@ -32,6 +32,9 @@
   tr.dupe td { background: #fff7ed; }
   tr.excluded td { opacity: .4; text-decoration: line-through; }
   tr.excluded td:first-child, tr.excluded td:last-child { text-decoration: none; }
+  /* 金額欄と写真欄は「除外中」でも操作するので、死んで見えないよう対象外にする */
+  tr.excluded td.amtcell, tr.excluded td.photocell { opacity: 1; text-decoration: none; }
+  td.amtcell .amt-in { text-decoration: none; }
   .amt-in { width: 90px; padding: 4px 6px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; font-weight: 700; text-align: right; font-family: inherit; }
   .st { font-size: 14px; }
   .conf-H { color: #16a34a; } .conf-M { color: #d97706; } .conf-L { color: #dc2626; }
@@ -109,21 +112,27 @@
 </div>
 
 <script>
-/* ── モデル自動解決 ──
+/* ── モデル自動解決（2段構え）──
    Googleが古いモデルを新規キー向けに打ち切るため、モデル名をハードコードしない。
-   キーで実際に使えるモデル一覧をAPIに問い合わせて、優先順で自動採用する。 */
-const MODEL_PREF = [
-  "gemini-3.6-flash",
-  "gemini-3.5-flash",
-  "gemini-flash-latest",
-  "gemini-3.1-flash",
-  "gemini-2.5-flash",
+   キーで実際に使えるモデル一覧を問い合わせて、以下の2つを決める。
+     FAST     … 全枚数を読む主力。Lite系＝無料枠が毎分30回と緩く、速い
+     ACCURATE … FASTが「自信なし(LOW)」を返した分だけ読み直す高精度モデル
+   これで「全体は速いまま、危ない所だけ精度を上げる」を両立する。 */
+const FAST_PREF = [
   "gemini-3.5-flash-lite",
   "gemini-3.1-flash-lite",
   "gemini-flash-lite-latest",
   "gemini-2.5-flash-lite",
 ];
-let ACTIVE_MODEL = localStorage.getItem("gemini_model") || null;
+const ACCURATE_PREF = [
+  "gemini-3.5-flash",
+  "gemini-3.6-flash",
+  "gemini-flash-latest",
+  "gemini-3.1-flash",
+  "gemini-2.5-flash",
+];
+let FAST_MODEL     = localStorage.getItem("gemini_model")  || null;
+let ACCURATE_MODEL = localStorage.getItem("gemini_model2") || null;
 
 async function listUsableModels(key) {
   const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200", {
@@ -138,24 +147,47 @@ async function listUsableModels(key) {
 }
 
 async function resolveModel(key, force) {
-  if (ACTIVE_MODEL && !force) return ACTIVE_MODEL;
+  if (FAST_MODEL && !force) return FAST_MODEL;
   const avail = await listUsableModels(key);
-  let pick = MODEL_PREF.find(m => avail.includes(m));
-  if (!pick) pick = avail.find(n => /^gemini-\d/.test(n) && /flash/.test(n) && !/preview|exp/.test(n));
-  if (!pick) pick = avail.find(n => /^gemini-\d/.test(n) && !/preview|exp/.test(n));
-  if (!pick) pick = avail[0];
-  if (!pick) throw new Error("このAPIキーで使えるモデルが1つも見つからない。キーを作り直してみて");
-  ACTIVE_MODEL = pick;
-  localStorage.setItem("gemini_model", pick);
+  let fast = FAST_PREF.find(m => avail.includes(m));
+  if (!fast) fast = avail.find(n => /^gemini-\d/.test(n) && /lite/.test(n) && !/preview|exp/.test(n));
+  let acc = ACCURATE_PREF.find(m => avail.includes(m));
+  if (!acc) acc = avail.find(n => /^gemini-\d/.test(n) && /flash/.test(n) && !/lite|preview|exp/.test(n));
+  if (!fast) fast = acc;                       // Lite系が無ければFlashで全部読む
+  if (!fast) fast = avail.find(n => /^gemini-\d/.test(n) && !/preview|exp/.test(n)) || avail[0];
+  if (!fast) throw new Error("このAPIキーで使えるモデルが1つも見つからない。キーを作り直してみて");
+  FAST_MODEL = fast;
+  ACCURATE_MODEL = (acc && acc !== fast) ? acc : null;
+  localStorage.setItem("gemini_model", FAST_MODEL);
+  if (ACCURATE_MODEL) localStorage.setItem("gemini_model2", ACCURATE_MODEL);
+  else localStorage.removeItem("gemini_model2");
+  paceMs = paceFor(FAST_MODEL);
   showModel();
-  return pick;
+  return FAST_MODEL;
 }
 
 function showModel() {
   const el = document.getElementById("modelLine");
-  if (el) el.textContent = ACTIVE_MODEL ? `🤖 使用モデル: ${ACTIVE_MODEL}` : "";
+  if (!el) return;
+  el.textContent = FAST_MODEL
+    ? `🤖 通常: ${FAST_MODEL}` + (ACCURATE_MODEL ? ` ／ 自信なしの分だけ: ${ACCURATE_MODEL}` : "")
+    : "";
 }
-const PACE_MS = 6500; // 無料枠(毎分10回)対策
+
+/* ── 送信ペース（無料枠のRPM対策）──
+   Lite系は毎分30回まで緩いので短く、Flash系は毎分10〜15回想定で長めに取る。
+   429を食らったら自動でペースを緩めて、その回の残りに引き継ぐ。 */
+function paceFor(model) { return /lite/i.test(model || "") ? 2200 : 4500; }
+let paceMs = paceFor(FAST_MODEL);
+let lastCallAt = 0;
+async function waitTurn(prog, label) {
+  const w = lastCallAt + paceMs - Date.now();
+  if (w > 0) {
+    if (prog) prog.innerHTML = `<span class="spin"></span> ${label}（ペース調整 あと${Math.ceil(w / 1000)}秒）`;
+    await sleep(w);
+  }
+  lastCallAt = Date.now();
+}
 let queue = [];   // {file, name}
 let rows = [];    // {id, name, amount, date, store, conf, source, reason, included, status}
 let running = false;
@@ -180,7 +212,8 @@ function saveKey() {
   if (!v) { alert("キーを貼り付けてから保存を押してね"); return; }
   localStorage.setItem("gemini_key", v);
   localStorage.removeItem("gemini_model");
-  ACTIVE_MODEL = null;
+  localStorage.removeItem("gemini_model2");
+  FAST_MODEL = null; ACCURATE_MODEL = null;
   refreshKeyCard();
   resolveModel(v).catch(e => alert("キーの確認でエラー: " + e.message));
 }
@@ -196,7 +229,8 @@ function refreshKeyCard() {
 function resetKey() {
   localStorage.removeItem("gemini_key");
   localStorage.removeItem("gemini_model");
-  ACTIVE_MODEL = null;
+  localStorage.removeItem("gemini_model2");
+  FAST_MODEL = null; ACCURATE_MODEL = null;
   location.reload();
 }
 
@@ -248,8 +282,25 @@ function toB64(file) {
   });
 }
 
-async function callGemini(key, b64, mime, _retried) {
-  const model = await resolveModel(key);
+/* generationConfig をモデル世代に合わせて組む。
+   Gemini 3系は既定で「考えてから答える」ため、そのままだと1枚あたり数秒余計にかかる。
+   レシートの金額読み取りに深い推論は不要なので thinkingLevel を low まで落とす。
+   （3系は完全offができない仕様。2.5系は thinkingBudget:0 でoff）
+   3系は temperature を触らないのが公式推奨なので指定しない。 */
+function genConfigFor(model, noThink) {
+  const g = { response_mime_type: "application/json" };
+  const isG3 = /gemini-3/i.test(model);
+  if (!noThink) {
+    if (isG3) g.thinkingConfig = { thinkingLevel: "low" };
+    else if (/gemini-2\.5/i.test(model)) g.thinkingConfig = { thinkingBudget: 0 };
+  }
+  if (!isG3) g.temperature = 0;
+  return g;
+}
+
+async function callGemini(key, b64, mime, model, opt) {
+  opt = opt || {};
+  model = model || await resolveModel(key);
   let resp;
   try {
     resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
@@ -257,7 +308,7 @@ async function callGemini(key, b64, mime, _retried) {
       headers: { "Content-Type": "application/json", "x-goog-api-key": key },
       body: JSON.stringify({
         contents: [{ parts: [ { inline_data: { mime_type: mime, data: b64 } }, { text: PROMPT } ] }],
-        generationConfig: { response_mime_type: "application/json", temperature: 0 },
+        generationConfig: genConfigFor(model, opt.noThink),
       }),
     });
   } catch (e) {
@@ -266,14 +317,19 @@ async function callGemini(key, b64, mime, _retried) {
   if (resp.status === 429) throw Object.assign(new Error("rate"), { rate: true });
   if (!resp.ok) {
     const body = await resp.text();
+    // thinking系パラメータを受け付けないモデルだった → 付けずに1回だけやり直す
+    if (resp.status === 400 && !opt.noThink && /thinking|thought/i.test(body)) {
+      return callGemini(key, b64, mime, model, { ...opt, noThink: true });
+    }
     const modelGone = resp.status === 404 ||
       /no longer available|is not found|not supported for|not found for API version/i.test(body);
-    if (modelGone && !_retried) {
+    if (modelGone && !opt.retried) {
       // モデルが廃止/未提供 → 一覧を取り直して自動で乗り換え、1回だけ再試行
       localStorage.removeItem("gemini_model");
-      ACTIVE_MODEL = null;
-      await resolveModel(key, true);
-      return callGemini(key, b64, mime, true);
+      localStorage.removeItem("gemini_model2");
+      FAST_MODEL = null; ACCURATE_MODEL = null;
+      const m = await resolveModel(key, true);
+      return callGemini(key, b64, mime, m, { ...opt, retried: true });
     }
     throw new Error(`APIエラー ${resp.status}: ${body.substring(0, 150)}`);
   }
@@ -287,10 +343,14 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 /* ── HEIC デコーダ(遅延読み込み) ──
    ChromeはHEICを表示できないので、必要になった時だけlibheifベースの
    デコーダを読み込む。読めなくてもAPI読み取り自体は動くので致命傷にはしない。 */
+/* 1番目は同じサイト内に置いた自前ファイル。広告ブロッカーや社内ネットに
+   外部CDNを蹴られても影響を受けない。落ちてた時のためCDNも残す。 */
 const HEIC_CDN = [
+  "./heic-to.js",
   "https://cdn.jsdelivr.net/npm/heic-to@1.5.2/dist/iife/heic-to.js",
   "https://unpkg.com/heic-to@1.5.2/dist/iife/heic-to.js",
 ];
+let heicLoadError = null;
 let heicLibPromise = null;
 function loadHeicLib() {
   if (window.HeicTo) return Promise.resolve(window.HeicTo);
@@ -298,7 +358,10 @@ function loadHeicLib() {
   heicLibPromise = new Promise((ok, ng) => {
     let i = 0;
     const tryNext = () => {
-      if (i >= HEIC_CDN.length) return ng(new Error("HEICデコーダの読み込みに失敗"));
+      if (i >= HEIC_CDN.length) {
+        heicLoadError = "HEIC表示用プログラムを読み込めなかった（同梱ファイルが未設置か、通信がブロックされている）";
+        return ng(new Error(heicLoadError));
+      }
       const sc = document.createElement("script");
       sc.src = HEIC_CDN[i++];
       sc.onload = () => window.HeicTo ? ok(window.HeicTo) : tryNext();
@@ -349,31 +412,31 @@ async function openPreview(id) {
   const r = rows.find(x => x.id === id);
   if (!r) return;
   const imgEl = document.getElementById("modalImg");
+  const show = (src) => { imgEl.src = src; document.getElementById("modal").style.display = "flex"; };
+
+  // 1) 元ファイルが手元にある（通常）
   if (r.fileRef && !looksHeic(r.fileRef)) {
     modalUrl = URL.createObjectURL(r.fileRef);
-    imgEl.src = modalUrl;
-  } else if (r.fileRef) {
-    // HEIC: 押された時に初めてフル解像度でデコード（結果は使い回す）
-    if (!r.fullUrl) {
-      imgEl.src = r.thumb || "";
-      document.getElementById("modal").style.display = "flex";
-      const jpg = await heicToJpegBlob(r.fileRef, 0.92);
-      if (jpg) { r.fullUrl = URL.createObjectURL(jpg); }
-      else if (!r.thumb) {
-        document.getElementById("modal").style.display = "none";
-        alert("この写真はブラウザで表示できなかった。Macの写真アプリで確認してね（読み取り自体は正常にできてる）");
-        return;
-      }
-    }
-    imgEl.src = r.fullUrl || r.thumb;
-  } else if (r.thumb) {
-    imgEl.src = r.thumb; // 復元データは縮小版のみ
-  } else {
-    alert("この写真は表示できない（ページ再読み込み後は元ファイルが残らないため）。読み取り結果の金額はそのまま使えるよ");
+    return show(modalUrl);
+  }
+  // 2) HEIC: 押された時に初めてフル解像度でデコード（結果は使い回す）
+  if (r.fileRef) {
+    if (r.fullUrl) return show(r.fullUrl);
+    if (r.thumb) show(r.thumb);            // まず縮小版を出して待たせない
+    const jpg = await heicToJpegBlob(r.fileRef, 0.92);
+    if (jpg) { r.fullUrl = URL.createObjectURL(jpg); return show(r.fullUrl); }
+    if (r.thumb) return;                   // 縮小版は出てるのでそのまま
+    document.getElementById("modal").style.display = "none";
+    alert("この写真はブラウザで表示できなかった。\n\n理由: " + (heicLoadError || "画像の変換に失敗") +
+          "\n\nMacの写真アプリで確認してね（金額は手入力できる）");
     return;
   }
-  document.getElementById("modal").style.display = "flex";
+  // 3) ページ再読み込み後など、元ファイルが無い → 保存してある縮小版を出す
+  if (r.thumb) return show(r.thumb);
+  alert("この写真の画像データが残ってない（ページを再読み込みすると元ファイルは消えるため）。\n" +
+        "金額欄は手入力できるので、写真を見ながら直接打ち込んでね。");
 }
+
 function closeModal() {
   document.getElementById("modal").style.display = "none";
   document.getElementById("modalImg").src = "";
@@ -398,30 +461,53 @@ async function startRead() {
   document.getElementById("totalbar").style.display = "";
   const prog = document.getElementById("prog");
 
+  /* 1枚を1モデルで読む。429を食らったら待って再試行し、以後のペースも自動で緩める */
+  async function readWith(model, b64, mime, label) {
+    for (let attempt = 0; ; attempt++) {
+      await waitTurn(prog, label);
+      try {
+        return await callGemini(key, b64, mime, model);
+      } catch (e) {
+        if (e.rate && attempt < 3) {
+          paceMs = Math.min(Math.round(paceMs * 1.6), 15000); // 混んでる → 恒久的に緩める
+          const w = 20 * (attempt + 1);
+          prog.innerHTML = `<span class="spin"></span> 無料枠の制限中… ${w}秒待機（${label}）`;
+          await sleep(w * 1000);
+          lastCallAt = Date.now();
+        } else throw e;
+      }
+    }
+  }
+  const applyRes = (row, res) => {
+    row.amount = (typeof res.amount === "number") ? res.amount : null;
+    row.date = res.date || null;
+    row.store = res.store || null;
+    row.conf = res.confidence === "HIGH" ? "H" : res.confidence === "MEDIUM" ? "M" : "L";
+    row.source = res.amount_source || "";
+    row.reason = res.reason || "";
+  };
+
   for (let i = 0; i < batch.length; i++) {
-    const t0 = Date.now();
-    prog.innerHTML = `<span class="spin"></span> ${i + 1} / ${batch.length} 枚目を読み取り中…`;
+    const label = `${i + 1} / ${batch.length} 枚目`;
+    prog.innerHTML = `<span class="spin"></span> ${label}を読み取り中…`;
     const item = batch[i];
     const row = { id: ++uid, name: item.name, fileRef: item.file, thumb: await makeThumb(item.file), amount: null, date: null, store: null, conf: "L", source: "", reason: "", included: true, status: "ok" };
     try {
       const b64 = await toB64(item.file);
-      let res;
-      for (let attempt = 0; ; attempt++) {
-        try { res = await callGemini(key, b64, mimeOf(item.name, item.file.type)); break; }
-        catch (e) {
-          if (e.rate && attempt < 3) {
-            const w = 30 * (attempt + 1);
-            prog.innerHTML = `<span class="spin"></span> 無料枠の速度制限中… ${w}秒待機（${i + 1}/${batch.length}）`;
-            await sleep(w * 1000);
-          } else throw e;
-        }
+      const mime = mimeOf(item.name, item.file.type);
+      applyRes(row, await readWith(FAST_MODEL, b64, mime, label));
+
+      // 自信なし or 金額が取れなかった分だけ、高精度モデルで読み直す
+      if ((row.amount == null || row.conf === "L") && ACCURATE_MODEL) {
+        prog.innerHTML = `<span class="spin"></span> ${label} 自信なし → 高精度モデルで確認中…`;
+        try {
+          const res2 = await readWith(ACCURATE_MODEL, b64, mime, label + "（再確認）");
+          if (typeof res2.amount === "number" && res2.confidence !== "LOW") {
+            applyRes(row, res2);
+            row.rechecked = true;
+          }
+        } catch (e) { /* 再確認が失敗しても1回目の結果は残す */ }
       }
-      row.amount = (typeof res.amount === "number") ? res.amount : null;
-      row.date = res.date || null;
-      row.store = res.store || null;
-      row.conf = res.confidence === "HIGH" ? "H" : res.confidence === "MEDIUM" ? "M" : "L";
-      row.source = res.amount_source || "";
-      row.reason = res.reason || "";
       if (row.amount == null || row.conf === "L") { row.included = false; }
     } catch (e) {
       row.status = "error";
@@ -430,11 +516,6 @@ async function startRead() {
     }
     rows.push(row);
     render();
-    const rest = PACE_MS - (Date.now() - t0);
-    if (i < batch.length - 1 && rest > 0) {
-      prog.innerHTML = `<span class="spin"></span> ${i + 1} / ${batch.length} 完了（無料枠ペース調整中…）`;
-      await sleep(rest);
-    }
   }
   prog.innerHTML = `✅ 完了！`;
   running = false;
@@ -450,9 +531,20 @@ function dupeKeys() {
   }
   return new Set(Object.keys(cnt).filter(k => cnt[k] >= 2));
 }
+/* 合計だけ更新する（表を作り直さない）。入力中に呼ぶ用 */
+function updateTotal() {
+  const total = rows.filter(r => r.included && r.amount != null).reduce((s, r) => s + r.amount, 0);
+  document.getElementById("totalVal").textContent = "¥" + total.toLocaleString();
+}
+
 function render() {
   const dk = dupeKeys();
   const tb = document.getElementById("tbody");
+  /* 読み取り中も1枚ごとにrenderが走るため、そのまま作り直すと
+     ユーザーが入力中の金額が消える。入力中の欄を覚えて復元する。 */
+  const ae = document.activeElement;
+  const keepId = (ae && ae.classList && ae.classList.contains("amt-in")) ? ae.dataset.rid : null;
+  const keepVal = keepId ? ae.value : null;
   tb.innerHTML = "";
   for (const r of rows) {
     const isDupe = r.amount != null && r.date && dk.has(r.amount + "|" + r.date);
@@ -461,10 +553,10 @@ function render() {
     if (!r.included) tr.className += " excluded";
     tr.innerHTML = `
       <td><input type="checkbox" ${r.included ? "checked" : ""} onchange="toggle(${r.id}, this.checked)"></td>
-      <td style="width:60px">
+      <td class="photocell" style="width:60px">
         ${r.thumb
           ? `<img src="${r.thumb}" style="width:48px;height:62px;object-fit:cover;border-radius:8px;cursor:zoom-in;border:1px solid #e5e7eb" onclick="openPreview(${r.id})" title="クリックで拡大">`
-          : `<div style="width:48px;height:62px;background:#f3f4f6;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:20px;cursor:pointer" onclick="openPreview(${r.id})">📄</div>`}
+          : `<div style="width:48px;height:62px;background:#f3f4f6;border:1px dashed #d1d5db;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;cursor:zoom-in" onclick="openPreview(${r.id})" title="クリックで拡大">🔍</div>`}
         <div class="meta" style="max-width:60px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.name)}">${esc(r.name)}</div>
       </td>
       <td>
@@ -472,14 +564,17 @@ function render() {
         <div class="meta">${esc(r.date || "日付不明")}${r.source ? " ・📍" + esc(r.source) : ""}</div>
         ${r.status === "error" ? `<div class="err">${esc(r.reason)}</div>${r.fileRef ? `<button class="btn-gray" style="margin-top:4px" onclick="retryRow(${r.id})">🔄 やり直す</button>` : ""}` : ""}
       </td>
-      <td style="text-align:right">
-        <input class="amt-in" type="number" value="${r.amount ?? ""}" placeholder="—" onchange="editAmt(${r.id}, this.value)">
+      <td class="amtcell" style="text-align:right">
+        <input class="amt-in" type="number" inputmode="decimal" data-rid="${r.id}" value="${r.amount ?? ""}" placeholder="手入力OK" oninput="editAmt(${r.id}, this.value, true)" onchange="editAmt(${r.id}, this.value)">
       </td>
-      <td class="conf-${r.conf}" style="font-size:15px" title="${esc(r.reason)}">${r.conf === "H" ? "✅" : r.conf === "M" ? "⚠️" : "❌"}</td>`;
+      <td class="conf-${r.conf}" style="font-size:15px" title="${esc((r.rechecked ? "[高精度モデルで再確認済] " : "") + (r.reason || ""))}">${r.conf === "H" ? "✅" : r.conf === "M" ? "⚠️" : "❌"}${r.rechecked ? '<span style="font-size:10px;color:#6b7280">🔍</span>' : ""}</td>`;
     tb.appendChild(tr);
   }
-  const total = rows.filter(r => r.included && r.amount != null).reduce((s, r) => s + r.amount, 0);
-  document.getElementById("totalVal").textContent = "¥" + total.toLocaleString();
+  if (keepId) {
+    const el = tb.querySelector('.amt-in[data-rid="' + keepId + '"]');
+    if (el) { el.value = keepVal; el.focus(); }
+  }
+  updateTotal();
   const nH = rows.filter(r => r.conf === "H" && r.status !== "error").length;
   const nM = rows.filter(r => r.conf === "M" && r.status !== "error").length;
   const nL = rows.filter(r => r.conf === "L" || r.status === "error").length;
@@ -514,13 +609,18 @@ function retryRow(id) {
   updateStartBtn();
   startRead();
 }
-function editAmt(id, v) {
+function editAmt(id, v, live) {
   const r = rows.find(x => x.id === id);
   if (!r) return;
   const n = parseFloat(v);
   r.amount = isNaN(n) ? null : n;
-  if (r.amount != null) { r.conf = "H"; r.included = true; r.source = "手動入力"; }
-  render();
+  if (r.amount != null) {
+    r.conf = "H"; r.included = true; r.source = "手動入力";
+    if (r.status === "error") { r.status = "ok"; r.reason = ""; }
+  }
+  // 入力中(live)は表を作り直さない＝打った数字が消えない
+  if (live) { updateTotal(); saveRows(); }
+  else render();
 }
 function clearAll() { if (confirm("結果を全部消す？（保存データも消える）")) { rows = []; queue = []; localStorage.removeItem("receipt_rows"); render(); updateStartBtn(); } }
 function esc(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
