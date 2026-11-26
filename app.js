@@ -4,7 +4,41 @@
 
 /* ── 画面を組み立てる ── */
 document.head.insertAdjacentHTML("beforeend", "<style>" + "\n  * { box-sizing: border-box; margin: 0; padding: 0; }\n  body { font-family: \"Hiragino Sans\", \"Noto Sans JP\", -apple-system, sans-serif; background: linear-gradient(160deg,#fafafa,#f0f4ff 60%,#fdf4ff); min-height: 100vh; color: #111827; }\n  .wrap { max-width: 680px; margin: 0 auto; padding: 20px 16px 140px; }\n  h1 { font-size: 20px; font-weight: 800; margin-bottom: 2px; }\n  .sub { font-size: 13px; color: #9ca3af; margin-bottom: 16px; }\n  .card { background: #fff; border-radius: 16px; padding: 16px; margin-bottom: 14px; box-shadow: 0 1px 6px rgba(0,0,0,.05); }\n  .keyrow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }\n  .keyrow input { flex: 1; min-width: 200px; padding: 9px 12px; border: 1.5px solid #d1d5db; border-radius: 10px; font-size: 13px; }\n  button { cursor: pointer; border: none; border-radius: 10px; font-weight: 700; font-family: inherit; }\n  .btn-blue { background: #3b82f6; color: #fff; padding: 9px 16px; font-size: 13px; }\n  .btn-green { background: #059669; color: #fff; padding: 9px 16px; font-size: 13px; }\n  .btn-gray { background: #fff; color: #6b7280; border: 1px solid #d1d5db; padding: 7px 12px; font-size: 12px; }\n  .hint { font-size: 12px; color: #9ca3af; margin-top: 8px; line-height: 1.6; }\n  .hint a { color: #3b82f6; }\n  #drop { border: 3px dashed #cbd5e1; border-radius: 20px; background: #fff; padding: 36px 20px; text-align: center; cursor: pointer; margin-bottom: 14px; transition: .15s; }\n  #drop.over { border-color: #3b82f6; background: #eff6ff; }\n  #drop .big { font-size: 42px; margin-bottom: 8px; }\n  #drop .t1 { font-size: 17px; font-weight: 700; margin-bottom: 4px; }\n  #drop .t2 { font-size: 13px; color: #6b7280; }\n  #startBtn { width: 100%; background: linear-gradient(135deg,#3b82f6,#6366f1); color: #fff; padding: 14px; font-size: 16px; border-radius: 14px; box-shadow: 0 4px 14px rgba(59,130,246,.3); margin-bottom: 14px; }\n  #startBtn:disabled { opacity: .45; cursor: default; box-shadow: none; }\n  table { width: 100%; border-collapse: collapse; font-size: 13px; }\n  th { text-align: left; padding: 6px 8px; color: #6b7280; font-size: 11px; font-weight: 600; border-bottom: 1.5px solid #e5e7eb; }\n  td { padding: 8px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }\n  tr.dupe td { background: #fff7ed; }\n  tr.excluded td { opacity: .4; text-decoration: line-through; }\n  tr.excluded td:first-child, tr.excluded td:last-child { text-decoration: none; }\n  /* 金額欄と写真欄は「除外中」でも操作するので、死んで見えないよう対象外にする */\n  tr.excluded td.amtcell, tr.excluded td.photocell { opacity: 1; text-decoration: none; }\n  td.amtcell .amt-in { text-decoration: none; }\n  .amt-in { width: 90px; padding: 4px 6px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; font-weight: 700; text-align: right; font-family: inherit; }\n  .st { font-size: 14px; }\n  .conf-H { color: #16a34a; } .conf-M { color: #d97706; } .conf-L { color: #dc2626; }\n  .meta { font-size: 11px; color: #9ca3af; }\n  .dupetag { display: inline-block; background: #ffedd5; color: #c2410c; font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 10px; margin-left: 4px; }\n  #totalbar { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255,255,255,.96); backdrop-filter: blur(8px); border-top: 1px solid #e5e7eb; padding: 12px 16px; z-index: 50; }\n  #totalbar .inner { max-width: 680px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; gap: 10px; }\n  #totalbar .lbl { font-size: 11px; color: #9ca3af; font-weight: 600; }\n  #totalbar .val { font-size: 26px; font-weight: 800; }\n  #prog { font-size: 13px; font-weight: 600; color: #374151; display: flex; align-items: center; gap: 8px; }\n  .spin { width: 16px; height: 16px; border: 3px solid #3b82f6; border-top-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; display: inline-block; }\n  @keyframes spin { to { transform: rotate(360deg); } }\n  .err { color: #dc2626; font-size: 12px; }\n" + "</style>");
-document.getElementById("app").innerHTML = "\n<div class=\"wrap\">\n  <h1>🧾 レシート読み取り</h1>\n  <div class=\"sub\">写真を選ぶだけで合計金額を自動計算 ｜ 完全無料 ｜ HEICそのままOK</div>\n\n  <div id=\"previewWarn\" style=\"display:none; background:#fef2f2; border:2px solid #fecaca; border-radius:14px; padding:14px; margin-bottom:14px; font-size:13px; line-height:1.7; color:#991b1b;\">\n    ⚠️ <b>今、このアプリはプレビュー画面で開かれてる。このままだと通信がブロックされて動かない！</b><br>\n    直し方: このHTMLファイルを<b>ダウンロード → デスクトップに置く → ダブルクリックで開く</b>。それだけで動くようになる。\n  </div>\n\n  <!-- API key -->\n  <div class=\"card\" id=\"keyCard\">\n    <div class=\"keyrow\">\n      <input type=\"password\" id=\"keyInput\" placeholder=\"GeminiのAPIキー（AIza...）を貼り付け\">\n      <button class=\"btn-blue\" onclick=\"saveKey()\">保存</button>\n    </div>\n    <div class=\"hint\">\n      🔑 無料キーの取り方（初回だけ・クレカ不要）: <a href=\"https://aistudio.google.com/apikey\" target=\"_blank\">aistudio.google.com/apikey</a> を開く → Googleでログイン → 「APIキーを作成」→ コピーして上に貼る。キーはこのMac内にだけ保存される。\n    </div>\n  </div>\n\n  <!-- drop zone -->\n  <div id=\"drop\">\n    <div class=\"big\">📸</div>\n    <div class=\"t1\">レシート写真をここにドロップ</div>\n    <div class=\"t2\">またはクリックして選択（複数OK・何回かに分けてもOK・HEIC/JPG/PNG対応）</div>\n    <input type=\"file\" id=\"fileInput\" accept=\"image/*,.heic,.heif\" multiple style=\"display:none\">\n  </div>\n\n  <button id=\"startBtn\" disabled onclick=\"startRead()\">▶ 読み取り開始</button>\n\n  <!-- results -->\n  <div class=\"card\" id=\"resultCard\" style=\"display:none\">\n    <div style=\"display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;\">\n      <b style=\"font-size:14px;\">読み取り結果 <span class=\"meta\">（金額は直接書き換えOK・☑外すと合計から除外）</span></b>\n      <span>\n        <button class=\"btn-green\" onclick=\"exportCSV()\">📥 CSV保存</button>\n        <button class=\"btn-gray\" onclick=\"clearAll()\">全部クリア</button>\n      </span>\n    </div>\n    <table>\n      <thead><tr><th>☑</th><th>写真</th><th>店名 / 日付</th><th style=\"text-align:right\">金額(円)</th><th></th></tr></thead>\n      <tbody id=\"tbody\"></tbody>\n    </table>\n    <div class=\"hint\">🔁 = 同じ金額+同じ日付のペア（重複の可能性）。オレンジ行を見比べて、ダブりなら☑を外すだけ。<br>❌の行は自動で☑オフ（写真を拡大確認→正しい金額を手打ちすれば合計に入る）。結果はブラウザを閉じても自動保存される。</div>\n  </div>\n</div>\n\n<!-- total bar -->\n<div id=\"totalbar\" style=\"display:none\">\n  <div class=\"inner\">\n    <div><div class=\"lbl\">合計（☑が付いてる分）</div><div class=\"val\" id=\"totalVal\">¥0</div><div class=\"lbl\" id=\"countLbl\"></div></div>\n    <div id=\"prog\"></div>\n  </div>\n</div>\n\n<!-- image preview modal -->\n<div id=\"modal\" style=\"display:none; position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:100; align-items:center; justify-content:center; cursor:zoom-out;\" onclick=\"closeModal()\">\n  <img id=\"modalImg\" style=\"max-width:94vw; max-height:92vh; border-radius:12px;\" alt=\"\">\n</div>\n\n";
+document.getElementById("app").innerHTML = "\n<div class=\"wrap\">\n  <h1>🧾 レシート読み取り</h1>\n  <div class=\"sub\">写真を選ぶだけで合計金額を自動計算 ｜ 完全無料 ｜ HEICそのままOK ｜ スマホOK</div>\n\n  <div id=\"previewWarn\" style=\"display:none; background:#fef2f2; border:2px solid #fecaca; border-radius:14px; padding:14px; margin-bottom:14px; font-size:13px; line-height:1.7; color:#991b1b;\">\n    ⚠️ <b>今、このアプリはプレビュー画面で開かれてる。このままだと通信がブロックされて動かない！</b><br>\n    直し方: このHTMLファイルを<b>ダウンロード → デスクトップに置く → ダブルクリックで開く</b>。それだけで動くようになる。\n  </div>\n\n  <!-- API key -->\n  <div class=\"card\" id=\"keyCard\">\n    <div class=\"keyrow\">\n      <input type=\"password\" id=\"keyInput\" placeholder=\"GeminiのAPIキー（AIza...）を貼り付け\">\n      <button class=\"btn-blue\" onclick=\"saveKey()\">保存</button>\n    </div>\n    <div class=\"hint\">\n      🔑 無料キーの取り方（初回だけ・クレカ不要）: <a href=\"https://aistudio.google.com/apikey\" target=\"_blank\">aistudio.google.com/apikey</a> を開く → Googleでログイン → 「APIキーを作成」→ コピーして上に貼る。キーはこのMac内にだけ保存される。\n    </div>\n  </div>\n\n  <!-- drop zone -->\n  <div id=\"drop\">\n    <div class=\"big\">📸</div>\n    <div class=\"t1\">レシート写真をここにドロップ</div>\n    <div class=\"t2\">またはクリックして選択（複数OK・何回かに分けてもOK・HEIC/JPG/PNG対応）</div>\n    <button id=\"camBtn\" onclick=\"event.stopPropagation(); document.getElementById('camInput').click()\">📷 カメラで撮影して追加</button>\n    <input type=\"file\" id=\"fileInput\" accept=\"image/*,.heic,.heif\" multiple style=\"display:none\">\n    <input type=\"file\" id=\"camInput\" accept=\"image/*\" capture=\"environment\" style=\"display:none\">\n  </div>\n\n  <button id=\"startBtn\" disabled onclick=\"startRead()\">▶ 読み取り開始</button>\n\n  <!-- results -->\n  <div class=\"card\" id=\"resultCard\" style=\"display:none\">\n    <div style=\"display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;\">\n      <b style=\"font-size:14px;\">読み取り結果 <span class=\"meta\">（金額は直接書き換えOK・☑外すと合計から除外）</span></b>\n      <span>\n        <button class=\"btn-blue\" onclick=\"archiveCurrent()\">📁 保存して次へ</button>\n        <button class=\"btn-green\" onclick=\"exportCSV()\">📥 CSV保存</button>\n        <button class=\"btn-gray\" onclick=\"clearAll()\">全部クリア</button>\n      </span>\n    </div>\n    <table>\n      <thead><tr><th>☑</th><th>写真</th><th>店名 / 日付</th><th style=\"text-align:right\">金額(円)</th><th></th></tr></thead>\n      <tbody id=\"tbody\"></tbody>\n    </table>\n    <div class=\"hint\">🔁 = 同じ金額+同じ日付のペア（重複の可能性）。オレンジ行を見比べて、ダブりなら☑を外すだけ。<br>❌の行は自動で☑オフ（写真を拡大確認→正しい金額を手打ちすれば合計に入る）。結果はブラウザを閉じても自動保存される。</div>\n  </div>\n\n  <!-- 過去の集計（月別履歴） -->\n  <div class=\"card\" id=\"historyCard\" style=\"display:none\">\n    <b style=\"font-size:14px;\">📁 過去の集計</b>\n    <div id=\"histList\" style=\"margin-top:4px;\"></div>\n    <div class=\"hint\">「開く」で表に呼び出せる（今表示中の結果は消えずに自動で履歴へ退避される）。見終わったら「📁 保存して次へ」でまた履歴に戻せる。</div>\n  </div>\n</div>\n\n<!-- total bar -->\n<div id=\"totalbar\" style=\"display:none\">\n  <div class=\"inner\">\n    <div><div class=\"lbl\">合計（☑が付いてる分）</div><div class=\"val\" id=\"totalVal\">¥0</div><div class=\"lbl\" id=\"countLbl\"></div></div>\n    <div id=\"prog\"></div>\n  </div>\n</div>\n\n<!-- image preview modal -->\n<div id=\"modal\" style=\"display:none; position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:100; align-items:center; justify-content:center; cursor:zoom-out;\" onclick=\"closeModal()\">\n  <img id=\"modalImg\" style=\"max-width:94vw; max-height:92vh; border-radius:12px;\" alt=\"\">\n</div>\n\n";
+
+/* ── スマホ対応：追加スタイルとホーム画面アプリ化の下準備 ──
+   画面幅600px以下（＝スマホ）のときだけ、表や余白を小さくして収める。
+   メタ情報を足すことで、iPhoneの「ホーム画面に追加」をしたとき
+   普通のアプリみたいに全画面で開くようになる。 */
+document.head.insertAdjacentHTML("beforeend", "<style>" +
+  "\n  #camBtn { margin-top: 12px; background: #fff; border: 2px solid #3b82f6; color: #2563eb; padding: 10px 18px; border-radius: 12px; font-size: 14px; }" +
+  "\n  .histrow { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 9px 0; border-bottom: 1px solid #f3f4f6; flex-wrap: wrap; }" +
+  "\n  @media (max-width: 600px) {" +
+  "\n    .wrap { padding: 14px 10px 150px; }" +
+  "\n    h1 { font-size: 18px; }" +
+  "\n    th, td { padding: 6px 3px; }" +
+  "\n    td.photocell { width: 50px !important; }" +
+  "\n    td.photocell .meta { max-width: 48px !important; }" +
+  "\n    .amt-in { width: 74px; font-size: 13px; }" +
+  "\n    #totalbar .val { font-size: 21px; }" +
+  "\n    #drop { padding: 22px 12px; }" +
+  "\n  }" +
+  "\n</style>");
+document.head.insertAdjacentHTML("beforeend",
+  '<meta name="theme-color" content="#3b82f6">' +
+  '<meta name="apple-mobile-web-app-capable" content="yes">' +
+  '<meta name="mobile-web-app-capable" content="yes">' +
+  '<meta name="apple-mobile-web-app-title" content="レシート読み取り">');
+try {
+  // ホーム画面追加用の設定（マニフェスト）をその場で生成して登録する。
+  // 対応してないブラウザでも害はない（単に無視される）。
+  const icon = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="22" fill="#3b82f6"/><text x="50" y="68" font-size="52" text-anchor="middle">🧾</text></svg>');
+  const mani = { name: "レシート読み取り", short_name: "レシート", start_url: "./", display: "standalone", background_color: "#fafafa", theme_color: "#3b82f6", icons: [{ src: icon, sizes: "any", type: "image/svg+xml" }] };
+  const l = document.createElement("link");
+  l.rel = "manifest";
+  l.href = URL.createObjectURL(new Blob([JSON.stringify(mani)], { type: "application/manifest+json" }));
+  document.head.appendChild(l);
+} catch (e) { /* 失敗しても本体機能には影響なし */ }
 
 /* ── ここから下はアプリ本体（関数はグローバルに置く。HTML側のonclickから呼ぶため） ── */
 
@@ -147,6 +181,8 @@ drop.ondragover = (e) => { e.preventDefault(); drop.classList.add("over"); };
 drop.ondragleave = () => drop.classList.remove("over");
 drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove("over"); addFiles(e.dataTransfer.files); };
 fileInput.onchange = () => { addFiles(fileInput.files); fileInput.value = ""; };
+const camInput = document.getElementById("camInput");
+camInput.onchange = () => { addFiles(camInput.files); camInput.value = ""; };
 
 function addFiles(list) {
   for (const f of list) {
@@ -504,6 +540,91 @@ function loadRows() {
     }
   } catch (e) {}
 }
+/* ── ② 月別の履歴（「保存して次へ」）──
+   仕組み: 今の表を名前付きで localStorage の履歴棚にしまう。
+   「開く」は棚から取り出して表に戻す（その時表示中だったものは自動で棚に退避）。
+   つまり結果が消える経路が無い。CSVは開かなくても履歴から直接出せる。 */
+function getHistory() {
+  try { return JSON.parse(localStorage.getItem("receipt_history") || "[]"); } catch (e) { return []; }
+}
+function setHistory(list) {
+  // 保存容量オーバーの時は、古い履歴のサムネ画像から順に捨てて再試行する
+  // （サムネが消えても金額・店名・日付・合計はそのまま残る）
+  for (let pass = 0; pass < 6; pass++) {
+    try { localStorage.setItem("receipt_history", JSON.stringify(list)); return true; } catch (e) {}
+    let stripped = false;
+    for (let i = list.length - 1; i >= 0 && !stripped; i--) {
+      for (const r of list[i].rows) if (r.thumb) { delete r.thumb; stripped = true; }
+    }
+    if (!stripped) break;
+  }
+  alert("保存容量がいっぱいで履歴に保存しきれなかった。先にいらない履歴を削除してね");
+  return false;
+}
+function histTotal(rs) { return rs.filter(r => r.included && r.amount != null).reduce((s, r) => s + r.amount, 0); }
+function stashRows(name) {
+  if (!rows.length) return;
+  const h = getHistory();
+  h.unshift({ id: Date.now(), name: name, savedAt: new Date().toISOString().slice(0, 10), rows: rows.map(({ fileRef, fullUrl, ...r }) => r) });
+  setHistory(h);
+}
+function archiveCurrent() {
+  if (!rows.length) { alert("保存する結果がまだ無いよ"); return; }
+  const d = new Date();
+  const def = `${d.getFullYear()}年${d.getMonth() + 1}月`;
+  const name = prompt("この集計の名前（例: 2026年11月、◯◯出張）", def);
+  if (name === null) return;
+  stashRows((name.trim() || def));
+  rows = [];
+  localStorage.removeItem("receipt_rows");
+  render();
+  renderHistory();
+  document.getElementById("prog").innerHTML = "📁 履歴に保存した。次の読み取りどうぞ";
+}
+function openHistory(id) {
+  const h = getHistory();
+  const i = h.findIndex(x => x.id === id);
+  if (i < 0) return;
+  if (rows.length) stashRows("退避 " + new Date().toLocaleDateString("ja-JP"));
+  const entry = h.splice(i, 1)[0];
+  setHistory(h);
+  rows = entry.rows || [];
+  uid = Math.max(uid, ...rows.map(r => r.id || 0), 0);
+  document.getElementById("resultCard").style.display = "";
+  document.getElementById("totalbar").style.display = "";
+  document.getElementById("prog").innerHTML = "📂 「" + esc(entry.name) + "」を開いた";
+  render();
+  renderHistory();
+}
+function histCSV(id) {
+  const entry = getHistory().find(x => x.id === id);
+  if (entry) exportCSV(entry.rows, entry.name);
+}
+function delHistory(id) {
+  const h = getHistory();
+  const e = h.find(x => x.id === id);
+  if (!e) return;
+  if (!confirm("「" + e.name + "」を削除する？（元に戻せない）")) return;
+  setHistory(h.filter(x => x.id !== id));
+  renderHistory();
+}
+function renderHistory() {
+  const h = getHistory();
+  const card = document.getElementById("historyCard");
+  if (!card) return;
+  card.style.display = h.length ? "" : "none";
+  document.getElementById("histList").innerHTML = h.map(e =>
+    '<div class="histrow">' +
+      '<div style="font-size:13px;color:#374151;flex:1;min-width:150px"><b>' + esc(e.name) + '</b><br>' +
+      '<span style="font-size:11px;color:#9ca3af">' + esc(e.savedAt || "") + ' ・ ' + e.rows.length + '枚 ・ ¥' + histTotal(e.rows).toLocaleString() + '</span></div>' +
+      '<span>' +
+        '<button class="btn-gray" onclick="openHistory(' + e.id + ')">開く</button> ' +
+        '<button class="btn-gray" onclick="histCSV(' + e.id + ')">CSV</button> ' +
+        '<button class="btn-gray" style="color:#dc2626" onclick="delHistory(' + e.id + ')">削除</button>' +
+      '</span>' +
+    '</div>').join("");
+}
+
 function toggle(id, v) { const r = rows.find(x => x.id === id); if (r) r.included = v; render(); }
 function retryRow(id) {
   const i = rows.findIndex(x => x.id === id);
@@ -531,14 +652,17 @@ function clearAll() { if (confirm("結果を全部消す？（保存データも
 function esc(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 
 /* ── CSV ── */
-function exportCSV() {
-  const dk = dupeKeys();
+/* 引数なし＝今表示中の表をCSVに。引数あり＝履歴の中身を開かずにCSVに */
+function exportCSV(rowsArg, nameArg) {
+  const rs = rowsArg || rows;
+  const cnt = {};
+  for (const r of rs) if (r.amount != null && r.date) cnt[r.amount + "|" + r.date] = (cnt[r.amount + "|" + r.date] || 0) + 1;
   const lines = [["ファイル名", "日付", "店名", "金額", "取得元", "確度", "合計に含む", "重複疑い", "備考"]];
-  for (const r of rows) {
-    const isDupe = r.amount != null && r.date && dk.has(r.amount + "|" + r.date);
+  for (const r of rs) {
+    const isDupe = r.amount != null && r.date && cnt[r.amount + "|" + r.date] >= 2;
     lines.push([r.name, r.date || "", r.store || "", r.amount ?? "", r.source, r.conf === "H" ? "HIGH" : r.conf === "M" ? "MEDIUM" : "LOW", r.included ? "○" : "", isDupe ? "重複疑い" : "", r.reason]);
   }
-  const total = rows.filter(r => r.included && r.amount != null).reduce((s, r) => s + r.amount, 0);
+  const total = rs.filter(r => r.included && r.amount != null).reduce((s, r) => s + r.amount, 0);
   lines.push([]);
   lines.push(["", "", "合計", total]);
   const csv = "\uFEFF" + lines.map(row => row.map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")).join("\r\n");
@@ -546,13 +670,15 @@ function exportCSV() {
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   const d = new Date();
-  a.download = `集計_${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}.csv`;
+  const safeName = (nameArg || "").replace(/[\\/:*?"<>|]/g, "").trim();
+  a.download = `集計_${safeName || (d.getFullYear() + String(d.getMonth() + 1).padStart(2, "0") + String(d.getDate()).padStart(2, "0"))}.csv`;
   a.click();
   URL.revokeObjectURL(a.href);
 }
 
 if (window.self !== window.top) document.getElementById("previewWarn").style.display = "";
 loadRows();
+renderHistory();
 refreshKeyCard();
 /* 既にキーが保存済みなら、ページを開いた時点で裏でモデルを解決しておく
    （キー入れ直し不要・「🤖 使用モデル」表示のため。失敗しても無視） */
