@@ -4,7 +4,7 @@
 
 /* ── 画面を組み立てる ── */
 document.head.insertAdjacentHTML("beforeend", "<style>" + "\n  * { box-sizing: border-box; margin: 0; padding: 0; }\n  body { font-family: \"Hiragino Sans\", \"Noto Sans JP\", -apple-system, sans-serif; background: linear-gradient(160deg,#fafafa,#f0f4ff 60%,#fdf4ff); min-height: 100vh; color: #111827; }\n  .wrap { max-width: 680px; margin: 0 auto; padding: 20px 16px 140px; }\n  h1 { font-size: 20px; font-weight: 800; margin-bottom: 2px; }\n  .sub { font-size: 13px; color: #9ca3af; margin-bottom: 16px; }\n  .card { background: #fff; border-radius: 16px; padding: 16px; margin-bottom: 14px; box-shadow: 0 1px 6px rgba(0,0,0,.05); }\n  .keyrow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }\n  .keyrow input { flex: 1; min-width: 200px; padding: 9px 12px; border: 1.5px solid #d1d5db; border-radius: 10px; font-size: 13px; }\n  button { cursor: pointer; border: none; border-radius: 10px; font-weight: 700; font-family: inherit; }\n  .btn-blue { background: #3b82f6; color: #fff; padding: 9px 16px; font-size: 13px; }\n  .btn-green { background: #059669; color: #fff; padding: 9px 16px; font-size: 13px; }\n  .btn-gray { background: #fff; color: #6b7280; border: 1px solid #d1d5db; padding: 7px 12px; font-size: 12px; }\n  .hint { font-size: 12px; color: #9ca3af; margin-top: 8px; line-height: 1.6; }\n  .hint a { color: #3b82f6; }\n  #drop { border: 3px dashed #cbd5e1; border-radius: 20px; background: #fff; padding: 36px 20px; text-align: center; cursor: pointer; margin-bottom: 14px; transition: .15s; }\n  #drop.over { border-color: #3b82f6; background: #eff6ff; }\n  #drop .big { font-size: 42px; margin-bottom: 8px; }\n  #drop .t1 { font-size: 17px; font-weight: 700; margin-bottom: 4px; }\n  #drop .t2 { font-size: 13px; color: #6b7280; }\n  #startBtn { width: 100%; background: linear-gradient(135deg,#3b82f6,#6366f1); color: #fff; padding: 14px; font-size: 16px; border-radius: 14px; box-shadow: 0 4px 14px rgba(59,130,246,.3); margin-bottom: 14px; }\n  #startBtn:disabled { opacity: .45; cursor: default; box-shadow: none; }\n  table { width: 100%; border-collapse: collapse; font-size: 13px; }\n  th { text-align: left; padding: 6px 8px; color: #6b7280; font-size: 11px; font-weight: 600; border-bottom: 1.5px solid #e5e7eb; }\n  td { padding: 8px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }\n  tr.dupe td { background: #fff7ed; }\n  tr.excluded td { opacity: .4; text-decoration: line-through; }\n  tr.excluded td:first-child, tr.excluded td:last-child { text-decoration: none; }\n  /* 金額欄と写真欄は「除外中」でも操作するので、死んで見えないよう対象外にする */\n  tr.excluded td.amtcell, tr.excluded td.photocell { opacity: 1; text-decoration: none; }\n  td.amtcell .amt-in { text-decoration: none; }\n  .amt-in { width: 90px; padding: 4px 6px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; font-weight: 700; text-align: right; font-family: inherit; }\n  .st { font-size: 14px; }\n  .conf-H { color: #16a34a; } .conf-M { color: #d97706; } .conf-L { color: #dc2626; }\n  .meta { font-size: 11px; color: #9ca3af; }\n  .dupetag { display: inline-block; background: #ffedd5; color: #c2410c; font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 10px; margin-left: 4px; }\n  #totalbar { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255,255,255,.96); backdrop-filter: blur(8px); border-top: 1px solid #e5e7eb; padding: 12px 16px; z-index: 50; }\n  #totalbar .inner { max-width: 680px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; gap: 10px; }\n  #totalbar .lbl { font-size: 11px; color: #9ca3af; font-weight: 600; }\n  #totalbar .val { font-size: 26px; font-weight: 800; }\n  #prog { font-size: 13px; font-weight: 600; color: #374151; display: flex; align-items: center; gap: 8px; }\n  .spin { width: 16px; height: 16px; border: 3px solid #3b82f6; border-top-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; display: inline-block; }\n  @keyframes spin { to { transform: rotate(360deg); } }\n  .err { color: #dc2626; font-size: 12px; }\n" + "</style>");
-document.getElementById("app").innerHTML = "\n<div class=\"wrap\">\n  <h1>🧾 レシート読み取り</h1>\n  <div class=\"sub\">写真を選ぶだけで合計金額を自動計算 ｜ 完全無料 ｜ HEICそのままOK ｜ スマホOK</div>\n\n  <div id=\"previewWarn\" style=\"display:none; background:#fef2f2; border:2px solid #fecaca; border-radius:14px; padding:14px; margin-bottom:14px; font-size:13px; line-height:1.7; color:#991b1b;\">\n    ⚠️ <b>今、このアプリはプレビュー画面で開かれてる。このままだと通信がブロックされて動かない！</b><br>\n    直し方: このHTMLファイルを<b>ダウンロード → デスクトップに置く → ダブルクリックで開く</b>。それだけで動くようになる。\n  </div>\n\n  <!-- API key -->\n  <div class=\"card\" id=\"keyCard\">\n    <div class=\"keyrow\">\n      <input type=\"password\" id=\"keyInput\" placeholder=\"GeminiのAPIキー（AIza...）を貼り付け\">\n      <button class=\"btn-blue\" onclick=\"saveKey()\">保存</button>\n    </div>\n    <div class=\"hint\">\n      🔑 無料キーの取り方（初回だけ・クレカ不要）: <a href=\"https://aistudio.google.com/apikey\" target=\"_blank\">aistudio.google.com/apikey</a> を開く → Googleでログイン → 「APIキーを作成」→ コピーして上に貼る。キーはこのMac内にだけ保存される。\n    </div>\n  </div>\n\n  <!-- drop zone -->\n  <div id=\"drop\">\n    <div class=\"big\">📸</div>\n    <div class=\"t1\">レシート写真をここにドロップ</div>\n    <div class=\"t2\">またはクリックして選択（複数OK・何回かに分けてもOK・HEIC/JPG/PNG対応）</div>\n    <button id=\"camBtn\" onclick=\"event.stopPropagation(); document.getElementById('camInput').click()\">📷 カメラで撮影して追加</button>\n    <input type=\"file\" id=\"fileInput\" accept=\"image/*,.heic,.heif\" multiple style=\"display:none\">\n    <input type=\"file\" id=\"camInput\" accept=\"image/*\" capture=\"environment\" style=\"display:none\">\n  </div>\n\n  <button id=\"startBtn\" disabled onclick=\"startRead()\">▶ 読み取り開始</button>\n\n  <!-- results -->\n  <div class=\"card\" id=\"resultCard\" style=\"display:none\">\n    <div style=\"display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;\">\n      <b style=\"font-size:14px;\">読み取り結果 <span class=\"meta\">（金額は直接書き換えOK・☑外すと合計から除外）</span></b>\n      <span>\n        <button class=\"btn-blue\" onclick=\"archiveCurrent()\">📁 保存して次へ</button>\n        <button class=\"btn-green\" onclick=\"exportCSV()\">📥 CSV保存</button>\n        <button class=\"btn-gray\" onclick=\"clearAll()\">全部クリア</button>\n      </span>\n    </div>\n    <table>\n      <thead><tr><th>☑</th><th>写真</th><th>店名 / 日付</th><th style=\"text-align:right\">金額(円)</th><th></th></tr></thead>\n      <tbody id=\"tbody\"></tbody>\n    </table>\n    <div class=\"hint\">🔁 = 同じ金額+同じ日付のペア（重複の可能性）。オレンジ行を見比べて、ダブりなら☑を外すだけ。<br>❌の行は自動で☑オフ（写真を拡大確認→正しい金額を手打ちすれば合計に入る）。結果はブラウザを閉じても自動保存される。</div>\n  </div>\n\n  <!-- 過去の集計（月別履歴） -->\n  <div class=\"card\" id=\"historyCard\" style=\"display:none\">\n    <b style=\"font-size:14px;\">📁 過去の集計</b>\n    <div id=\"histList\" style=\"margin-top:4px;\"></div>\n    <div class=\"hint\">「開く」で表に呼び出せる（今表示中の結果は消えずに自動で履歴へ退避される）。見終わったら「📁 保存して次へ」でまた履歴に戻せる。</div>\n  </div>\n</div>\n\n<!-- total bar -->\n<div id=\"totalbar\" style=\"display:none\">\n  <div class=\"inner\">\n    <div><div class=\"lbl\">合計（☑が付いてる分）</div><div class=\"val\" id=\"totalVal\">¥0</div><div class=\"lbl\" id=\"countLbl\"></div></div>\n    <div id=\"prog\"></div>\n  </div>\n</div>\n\n<!-- image preview modal -->\n<div id=\"modal\" style=\"display:none; position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:100; align-items:center; justify-content:center; cursor:zoom-out;\" onclick=\"closeModal()\">\n  <img id=\"modalImg\" style=\"max-width:94vw; max-height:92vh; border-radius:12px;\" alt=\"\">\n</div>\n\n";
+document.getElementById("app").innerHTML = "\n<div class=\"wrap\">\n  <h1>🧾 レシート読み取り</h1>\n  <div class=\"sub\">写真を選ぶだけで合計金額を自動計算 ｜ 完全無料 ｜ HEICそのままOK ｜ スマホOK</div>\n\n  <div id=\"previewWarn\" style=\"display:none; background:#fef2f2; border:2px solid #fecaca; border-radius:14px; padding:14px; margin-bottom:14px; font-size:13px; line-height:1.7; color:#991b1b;\">\n    ⚠️ <b>今、このアプリはプレビュー画面で開かれてる。このままだと通信がブロックされて動かない！</b><br>\n    直し方: このHTMLファイルを<b>ダウンロード → デスクトップに置く → ダブルクリックで開く</b>。それだけで動くようになる。\n  </div>\n\n  <!-- API key -->\n  <div class=\"card\" id=\"keyCard\">\n    <div class=\"keyrow\">\n      <input type=\"password\" id=\"keyInput\" placeholder=\"GeminiのAPIキー（AIza...）を貼り付け\">\n      <button class=\"btn-blue\" onclick=\"saveKey()\">保存</button>\n    </div>\n    <div class=\"hint\">\n      🔑 無料キーの取り方（初回だけ・クレカ不要）: <a href=\"https://aistudio.google.com/apikey\" target=\"_blank\">aistudio.google.com/apikey</a> を開く → Googleでログイン → 「APIキーを作成」→ コピーして上に貼る。キーはこの端末の中にだけ保存される。\n    </div>\n  </div>\n\n  <!-- drop zone -->\n  <div id=\"drop\">\n    <div class=\"big\">📸</div>\n    <div class=\"t1\">レシート写真をここにドロップ</div>\n    <div class=\"t2\">またはクリックして選択（複数OK・何回かに分けてもOK・HEIC/JPG/PNG対応）</div>\n    <button id=\"camBtn\" onclick=\"event.stopPropagation(); document.getElementById('camInput').click()\">📷 カメラで撮影して追加</button>\n    <input type=\"file\" id=\"fileInput\" accept=\"image/*,.heic,.heif\" multiple style=\"display:none\">\n    <input type=\"file\" id=\"camInput\" accept=\"image/*\" capture=\"environment\" style=\"display:none\">\n  </div>\n\n  <button id=\"startBtn\" disabled onclick=\"startRead()\">▶ 読み取り開始</button>\n\n  <!-- results -->\n  <div class=\"card\" id=\"resultCard\" style=\"display:none\">\n    <div style=\"display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;\">\n      <b style=\"font-size:14px;\">読み取り結果 <span class=\"meta\">（金額は直接書き換えOK・☑外すと合計から除外）</span></b>\n      <span>\n        <button class=\"btn-blue\" onclick=\"archiveCurrent()\">📁 保存して次へ</button>\n        <button class=\"btn-green\" onclick=\"exportCSV()\">📥 CSV保存</button>\n        <button class=\"btn-gray\" onclick=\"clearAll()\">全部クリア</button>\n      </span>\n    </div>\n    <table>\n      <thead><tr><th>☑</th><th>写真</th><th>店名 / 日付</th><th style=\"text-align:right\">金額(円)</th><th></th></tr></thead>\n      <tbody id=\"tbody\"></tbody>\n    </table>\n    <div class=\"hint\">🔁 = 同じ金額+同じ日付のペア（重複の可能性）。オレンジ行を見比べて、ダブりなら☑を外すだけ。<br>❌の行は自動で☑オフ（写真を拡大確認→正しい金額を手打ちすれば合計に入る）。結果はブラウザを閉じても自動保存される。</div>\n  </div>\n\n  <!-- 過去の集計（月別履歴） -->\n  <div class=\"card\" id=\"historyCard\" style=\"display:none\">\n    <b style=\"font-size:14px;\">📁 過去の集計</b>\n    <div id=\"histList\" style=\"margin-top:4px;\"></div>\n    <div class=\"hint\">「開く」で表に呼び出せる（今表示中の結果は消えずに自動で履歴へ退避される）。見終わったら「📁 保存して次へ」でまた履歴に戻せる。</div>\n  </div>\n</div>\n\n<!-- total bar -->\n<div id=\"totalbar\" style=\"display:none\">\n  <div class=\"inner\">\n    <div><div class=\"lbl\">合計（☑が付いてる分）</div><div class=\"val\" id=\"totalVal\">¥0</div><div class=\"lbl\" id=\"countLbl\"></div></div>\n    <div id=\"prog\"></div>\n  </div>\n</div>\n\n<!-- image preview modal -->\n<div id=\"modal\" style=\"display:none; position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:100; align-items:center; justify-content:center; cursor:zoom-out;\" onclick=\"closeModal()\">\n  <img id=\"modalImg\" style=\"max-width:94vw; max-height:92vh; border-radius:12px;\" alt=\"\">\n</div>\n\n";
 
 /* ── スマホ対応：追加スタイルとホーム画面アプリ化の下準備 ──
    画面幅600px以下（＝スマホ）のときだけ、表や余白を小さくして収める。
@@ -24,21 +24,48 @@ document.head.insertAdjacentHTML("beforeend", "<style>" +
   "\n    #drop { padding: 22px 12px; }" +
   "\n  }" +
   "\n</style>");
-document.head.insertAdjacentHTML("beforeend",
-  '<meta name="theme-color" content="#3b82f6">' +
-  '<meta name="apple-mobile-web-app-capable" content="yes">' +
-  '<meta name="mobile-web-app-capable" content="yes">' +
-  '<meta name="apple-mobile-web-app-title" content="レシート読み取り">');
-try {
-  // ホーム画面追加用の設定（マニフェスト）をその場で生成して登録する。
-  // 対応してないブラウザでも害はない（単に無視される）。
-  const icon = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="22" fill="#3b82f6"/><text x="50" y="68" font-size="52" text-anchor="middle">🧾</text></svg>');
-  const mani = { name: "レシート読み取り", short_name: "レシート", start_url: "./", display: "standalone", background_color: "#fafafa", theme_color: "#3b82f6", icons: [{ src: icon, sizes: "any", type: "image/svg+xml" }] };
-  const l = document.createElement("link");
-  l.rel = "manifest";
-  l.href = URL.createObjectURL(new Blob([JSON.stringify(mani)], { type: "application/manifest+json" }));
-  document.head.appendChild(l);
-} catch (e) { /* 失敗しても本体機能には影響なし */ }
+/* ホーム画面用の設定は index.html に直接書いてある（アイコン画像・manifest.webmanifest）。
+   ここは index.html が古いまま（ブラウザのキャッシュ等）だった時の保険。 */
+if (!document.querySelector('link[rel="manifest"]')) {
+  document.head.insertAdjacentHTML("beforeend",
+    '<link rel="manifest" href="manifest.webmanifest">' +
+    '<link rel="apple-touch-icon" href="apple-touch-icon.png">' +
+    '<meta name="theme-color" content="#3b82f6">' +
+    '<meta name="apple-mobile-web-app-capable" content="yes">' +
+    '<meta name="mobile-web-app-capable" content="yes">' +
+    '<meta name="apple-mobile-web-app-title" content="レシート">');
+}
+
+/* ── iPhoneのSafariで開いた時だけ「ホーム画面に追加してね」の案内を出す ──
+   ホーム画面のアイコンから起動した時（＝もうアプリ化済み）は出さない。
+   ×で閉じたら次からは出さない。 */
+const IS_IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+  (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1); // iPadOSはMac扱いで来るため
+const IS_STANDALONE = window.navigator.standalone === true ||
+  (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches);
+function dismissInstallHint() {
+  try { localStorage.setItem("hide_install_hint", "1"); } catch (e) {}
+  const el = document.getElementById("installHint");
+  if (el) el.style.display = "none";
+}
+function showInstallHintIfNeeded() {
+  let hidden = false;
+  try { hidden = localStorage.getItem("hide_install_hint") === "1"; } catch (e) {}
+  if (!IS_IOS || IS_STANDALONE || hidden) return;
+  const wrap = document.querySelector(".wrap");
+  const sub = wrap && wrap.querySelector(".sub");
+  if (!sub) return;
+  sub.insertAdjacentHTML("afterend",
+    '<div id="installHint" style="position:relative;background:#eff6ff;border:2px solid #bfdbfe;border-radius:14px;padding:12px 36px 12px 14px;margin-bottom:14px;font-size:13px;line-height:1.8;color:#1e3a8a;">' +
+      '<button onclick="dismissInstallHint()" style="position:absolute;top:6px;right:8px;background:none;color:#64748b;font-size:18px;padding:2px 6px;">×</button>' +
+      '📱 <b>アプリみたいに使う方法（30秒）</b><br>' +
+      '① 画面の下にある <b>共有ボタン</b>（□に↑のマーク）を押す<br>' +
+      '② 下にスクロールして <b>「ホーム画面に追加」</b> を押す<br>' +
+      '③ 右上の <b>「追加」</b> を押す<br>' +
+      '→ ホーム画面に青いアイコンができる。<b>次からはそのアイコンから開いてね</b>' +
+      '<div style="margin-top:6px;font-size:12px;color:#475569;">※アイコンから開くと、最初の1回だけAPIキーの貼り付けがもう一度必要（iPhoneの仕組みで、Safariとアイコンで保存場所が別のため）</div>' +
+    '</div>');
+}
 
 /* ── ここから下はアプリ本体（関数はグローバルに置く。HTML側のonclickから呼ぶため） ── */
 
@@ -677,6 +704,7 @@ function exportCSV(rowsArg, nameArg) {
 }
 
 if (window.self !== window.top) document.getElementById("previewWarn").style.display = "";
+showInstallHintIfNeeded();
 loadRows();
 renderHistory();
 refreshKeyCard();
